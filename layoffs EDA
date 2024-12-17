@@ -1,0 +1,170 @@
+explorating data analysis is one after the data cleaning process
+
+
+1. Data overview 
+
+use world_layoffs;
+select * from layoffs_staging2;
+
+2. see the date range of the data
+
+Select min(`date`), max(`date`) from layoffs_staging2;
+
+3. calculate total lay_off analysis 
+
+   a. gives year wise total layoffs
+
+select year(`date`) as years, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by years
+order by sum_layoffs desc;
+
+  b. month wise total layoffs
+
+select monthname(`date`) as months, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by months
+order by sum_layoffs desc;
+
+c. year wise monthy total layoffs
+
+select monthname(`date`) as months,year(`date`) as years, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by months, years, month(`date`)
+order by years, month(`date`) ;
+
+d. top 5 dates with maximum layoffs
+
+select `date`, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by date
+order by sum_layoffs desc
+limit 5;
+
+4. rolling total - to calulate trends
+
+a. month to month total layoff trend (from minimum year to maximum  year)
+
+select monthname(`date`) as months,year(`date`) as years, sum(total_laid_off) as sum_layoffs,
+sum(sum(total_laid_off)) over( order by year(`date`), month(`date`)) as rolling_total
+from layoffs_staging2
+group by years, months ,month(`date`)
+order by years, month(`date`);
+
+b. month over month lay off trend (current month-previous month)
+
+select month(`date`) as month_no ,year(`date`) as years
+, monthname(`date`) as months, sum(total_laid_off) as sum_layoffs,
+lag(sum(total_laid_off)) over (order by year(`date`),month (`date`)) as previous_month,
+sum(total_laid_off) - lag(sum(total_laid_off)) over (order by year(`date`), month (`date`)) as month_to_month_change
+from layoffs_staging2
+group by month_no, months, years
+order by years, month_no;
+
+5. layoffs by companies
+
+a. companies with most layoffs
+
+select company, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by company
+order by sum_layoffs desc;
+
+b. companies with maximum layoffs in single day
+
+select company,`date`, max(total_laid_off) as max_layoff
+from layoffs_staging2
+where total_laid_off is not null
+group by company,`date`
+order by max_layoff desc;
+
+c. companies with minimum layoffs in single day
+
+select company,`date`, min(total_laid_off) as min_layoff
+from layoffs_staging2
+where total_laid_off is not null
+group by company,`date`
+order by min_layoff asc;
+
+d. top 3 companies each year wiht highest layoffs
+
+with cte as
+(select company, year(`date`) as years, sum(total_laid_off) as sum_layoffs,
+rank() over(partition by year(`date`) order by sum(total_laid_off) desc) as ranking
+from layoffs_staging2
+group by company,years
+order by years asc, ranking asc)
+
+select * from cte where ranking <=3; # gives top 3 companies each year which had maixmum layoffs 
+
+e. companies with 100% layoffs
+
+select * from layoffs_staging2
+where percentage_laid_off =1;
+
+select count(*) from layoffs_staging2
+where percentage_laid_off =1;
+
+f. comapnies with largest employee loss when layoffs were 100%
+
+select * from layoffs_staging2
+where percentage_laid_off =1
+order by total_laid_off desc;
+
+g. worst affected countries by layoffs each year (ranking)
+
+with cte as (select country, year(`date`) as years, sum(total_laid_off) as sum_layoffs,
+rank () over(partition by year(`date`) order by sum(total_laid_off) desc) as ranking
+from layoffs_staging2
+group by country, years)
+ 
+select * from cte where ranking <=3;
+
+
+6. layoffs, funds, percenatge laid off
+
+a. companies with highest funds when layoffs were 100%
+
+select * from layoffs_staging2
+where percentage_laid_off =1
+order by funds_raised desc;
+
+7. company, industry, funds analysis
+
+a. industries with most layoffs
+
+select industry, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by industry
+order by sum_layoffs desc;
+
+b. companies with most layoffs
+
+select country, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by country
+order by sum_layoffs desc;
+
+c. top 5 country had the most funding
+
+select country, sum(funds_raised) as sum_funds
+from layoffs_staging2
+group by country
+order by sum_funds desc
+limit 5;
+
+d. companies in top country with maximum funds
+
+select company, sum(funds_raised) as sum_funds 
+from layoffs_staging2
+where country ="United States"
+group by company
+order by sum_funds desc;
+
+
+8. stages with total layoffs
+
+select stage, sum(total_laid_off) as sum_layoffs
+from layoffs_staging2
+group by stage
+order by sum_layoffs desc;
