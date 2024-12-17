@@ -1,0 +1,186 @@
+Data cleaning process in sql 
+
+download the data set- https://www.kaggle.com/datasets/swaptr/layoffs-2022
+this is a layyoffs data set which has data spaning from  03 March 2020 to 11 december 2024
+
+follow the below steps to have a clean data and esure data consistency, accuracy and relaibility.
+
+1. create a duplicate or staging table to ccarry out the data cleaning process
+
+select * from layoffs;         -- orginal table
+
+create table layoffs_staging like layoffs;    -- creating a duplicate or staging table
+___________________________________________________________________________________________________________________________________________________________________________________
+2. insert the elements from orginal to staging table
+
+insert layoffs_staging
+select * from layoffs;
+___________________________________________________________________________________________________________________________________________________________________________________
+3. remove duplicates
+
+a. using row number 
+-------------------
+
+select *,
+row_number() over(partition by company,location, industry,total_laid_off,percentage_laid_off,`date`,stage,country,funds_raised) as rn
+from layoffs_staging;
+
+--The ROW_NUMBER() function is partitioned by several columns, such as company, location, industry, total_laid_off, percentage_laid_off, date, stage, country, and funds_raised. 
+--Each of these combinations of fields is treated as a distinct group when assigning row numbers.
+--In this case A row would get a row number of 2 (or any other number greater than 1) when there are duplicate combinations of the columns you're partitioning by.
+
+b. using cte to checking row number > 1 to remove duplicates
+------------------------------------------------------------
+
+with cte as (select *,
+row_number() over(partition by company,location, industry,total_laid_off,percentage_laid_off,`date`,stage,country,funds_raised) as row_num
+from layoffs_staging)
+select * from cte where row_num>1;
+
+c. creating another table to add the row number in order to delete the duplicates 
+---------------------------------------------------------------------------------
+CREATE TABLE `layoffs_staging2` (
+  `company` text,
+  `location` text,
+  `industry` text,
+  `total_laid_off` text,
+  `percentage_laid_off` text,
+  `date` text,
+  `stage` text,
+  `country` text,
+  `funds_raised` text,
+  `row_num` int
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+d. inserting the elements in the table
+---------------------------------------
+
+insert into layoffs_staging2
+select *,
+row_number() over(partition by company,location, industry,total_laid_off,percentage_laid_off,`date`,stage,country,funds_raised) as row_num
+from layoffs_staging;
+
+e. delete the duplicates
+------------------------
+
+delete from layoffs_staging2
+where row_num> 1;
+
+f. recheck duplicates
+---------------------
+
+select * from layoffs_staging2
+where row_num>1;
+___________________________________________________________________________________________________________________________________________________________________________________
+
+4. Standardizing data 
+
+a. remove unwanted spaces in columns
+-------------------------------------
+
+update layoffs_staging2 set company =trim(company);
+
+b. Update Similar Text Values in Columns
+----------------------------------------
+
+select distinct(industry) from layoffs_staging2
+order by 1;
+
+select distinct(location) from layoffs_staging2
+order by 1;
+
+update layoffs_staging2 set location = "Malmo"
+where location in ("%Malmö%" ,"%MalmÃ¶%");
+
+update layoffs_staging2 set location = "Dusseldorf"
+where location like "DÃ¼sseldorf";
+
+select distinct(country) from layoffs_staging2
+order by 1;
+
+c.Addressing Empty Rows in Columns (note -- there were no nulls in columns, Just Empty Values)
+----------------------------------------------------------------------------------------------
+
+select * from layoffs_staging2
+where company is null or company="";        --- identifies missing values (none were present in the data set for company)
+
+select * from layoffs_staging2
+where location is null or location="";      ---(in the dataset, only one company with no location was present) 
+
+select * from layoffs_staging2
+where company='Product Hunt';               ---(if there is only one company with no location filling its value is not appropriate)
+
+select * from layoffs_staging2
+where industry is null or industry="";      ---(in the dataset, only one company with no industry was present)
+
+select * from layoffs_staging2
+where company='Appsmith';
+
+select *  from layoffs_staging2
+where total_laid_off is null or total_laid_off="";               
+
+select *  from layoffs_staging2
+where percentage_laid_off is null or percentage_laid_off="";      
+
+select count(*) from layoffs_staging2
+where total_laid_off="" and percentage_laid_off="";           ---(in this sdataset, there are 642 rows of no informtion about the total and percentage of layoffs)
+
+delete from layoffs_staging2
+where total_laid_off="" and percentage_laid_off="";  #       ---(deleting the 642 rows of empty data)
+
+d. Backfilling
+--------------
+
+---  if incase there are two same companys with known locations and one unknown industry , the unknown indutry can be fileld by refefreing to the comapny and location  ---
+
+select  * from layoffs_staging2 i1
+join layoffs_staging2 i2 
+on i1.company=i2.company
+where (i1.industry is null or i1.industry = "")
+and i2.industry is not null;
+
+update layoffs_staging2 i1
+join layoffs_staging2 i2 
+on i1.company=i2.company
+set i1.industry=i2.industry
+where (i1.industry is null or i1.industry = "")
+and i2.industry is not null;
+___________________________________________________________________________________________________________________________________________________________________________________
+
+5. Changing the data type of columns
+
+--Some columns' data types cannot be changed if they contain empty values, and filling these empty values with zero can lead to overlooking important relationships between the variables--
+
+a. filling empty rows to null to change data types of columns through - select, update and alter
+------------------------------------------------------------------------------------------------
+
+select count(total_laid_off) from layoffs_staging2 where total_laid_off="";   ---(in this data set, ther were 717 rows on empty values in the total_laid_off coulmn)---
+
+update layoffs_staging2 set total_laid_off = null 
+where total_laid_off ="";                                                     ---(updating the empty rows)--
+
+alter table layoffs_staging2 modify column total_laid_off int;                ---(altering the column)--
+
+select count(percentage_laid_off) from layoffs_staging2 where percentage_laid_off="";
+
+update layoffs_staging2 set percentage_laid_off = null 
+where percentage_laid_off ="";
+
+alter table layoffs_staging2 modify column percentage_laid_off float;
+
+select count(funds_raised) from layoffs_staging2 where percentage_laid_off=""; 
+
+update layoffs_staging2 set funds_raised = null 
+where funds_raised ="";
+
+alter table layoffs_staging2 modify column funds_raised int;
+
+
+
+
+
+
+
+
+
+
