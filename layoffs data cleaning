@@ -5,20 +5,20 @@ this is a layyoffs data set which has data spaning from  03 March 2020 to 11 dec
 
 follow the below steps to have a clean data and esure data consistency, accuracy and relaibility.
 
-1. create a duplicate or staging table to ccarry out the data cleaning process
+1. Create a duplicate or staging table to carry out the data cleaning process
 
 select * from layoffs;         -- orginal table
 
 create table layoffs_staging like layoffs;    -- creating a duplicate or staging table
 ___________________________________________________________________________________________________________________________________________________________________________________
-2. insert the elements from orginal to staging table
+2. Transfer elements from orginal to staging table
 
 insert layoffs_staging
 select * from layoffs;
 ___________________________________________________________________________________________________________________________________________________________________________________
-3. remove duplicates
+3. Remove duplicates
 
-a. using row number 
+a. Using row number 
 -------------------
 
 select *,
@@ -29,7 +29,7 @@ from layoffs_staging;
 --Each of these combinations of fields is treated as a distinct group when assigning row numbers.
 --In this case A row would get a row number of 2 (or any other number greater than 1) when there are duplicate combinations of the columns you're partitioning by.
 
-b. using cte to checking row number > 1 to remove duplicates
+b. Using cte to checking row number > 1 to remove duplicates
 ------------------------------------------------------------
 
 with cte as (select *,
@@ -37,7 +37,7 @@ row_number() over(partition by company,location, industry,total_laid_off,percent
 from layoffs_staging)
 select * from cte where row_num>1;
 
-c. creating another table to add the row number in order to delete the duplicates 
+c. Create another table to add the row number in order to delete the duplicates 
 ---------------------------------------------------------------------------------
 CREATE TABLE `layoffs_staging2` (
   `company` text,
@@ -52,7 +52,7 @@ CREATE TABLE `layoffs_staging2` (
   `row_num` int
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-d. inserting the elements in the table
+d. Transfer the elements in the table
 ---------------------------------------
 
 insert into layoffs_staging2
@@ -60,13 +60,13 @@ select *,
 row_number() over(partition by company,location, industry,total_laid_off,percentage_laid_off,`date`,stage,country,funds_raised) as row_num
 from layoffs_staging;
 
-e. delete the duplicates
+e. Delete the duplicates
 ------------------------
 
 delete from layoffs_staging2
 where row_num> 1;
 
-f. recheck duplicates
+f. Recheck duplicates
 ---------------------
 
 select * from layoffs_staging2
@@ -75,12 +75,12 @@ ________________________________________________________________________________
 
 4. Standardizing data 
 
-a. remove unwanted spaces in columns
+a. Remove unwanted spaces in columns
 -------------------------------------
 
 update layoffs_staging2 set company =trim(company);
 
-b. Update Similar Text Values in Columns
+b. Update similar Text Values in Columns
 ----------------------------------------
 
 select distinct(industry) from layoffs_staging2
@@ -98,7 +98,7 @@ where location like "DÃ¼sseldorf";
 select distinct(country) from layoffs_staging2
 order by 1;
 
-c.Addressing Empty Rows in Columns (note -- there were no nulls in columns, Just Empty Values)
+c.Addressing empty rows in Columns (note -- there were no nulls in columns, Just Empty Values)
 ----------------------------------------------------------------------------------------------
 
 select * from layoffs_staging2
